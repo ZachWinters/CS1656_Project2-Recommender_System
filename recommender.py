@@ -38,18 +38,47 @@ class Recommender(object):
         else:
             # the test set is a DataFrame
             self.test_set = test_set.copy()
-    
+        
     def train_user_euclidean(self, data_set, userId):
-        return {} # dictionary of weights mapped to users. e.g. {"0331949b45":1.0, "1030c5a8a9":2.5}
-    
-    def train_user_manhattan(self, data_set, userId):
-        return {} # dictionary of weights mapped to users. e.g. {"0331949b45":1.0, "1030c5a8a9":2.5}
+        dfeu = data_set.copy()
+        similarities = {}
+        for user in dfeu.columns[1:]:
+            if (user != userId):
+                df_subset = dfeu[[userId, user]][dfeu[userId].notnull() & dfeu[user].notnull()]
+                dist = euclidean(df_subset[userId],df_subset[user])
+                similarities[user] = 1.0/(1.0 + dist)
+        return similarities
 
+    def train_user_manhattan(self, data_set, userId):
+        dfman = data_set.copy()
+        similarities = {}
+        for user in dfman.columns[1:]:
+           if (user != userId) :
+               df_subset = dfman[[userId, user]][dfman[userId].notnull() & dfman[user].notnull()]
+               dist = cityblock(df_subset[userId], df_subset[user])
+               similarities[user] = 1.0 / (1.0 + dist)
+        return similarities
+    
     def train_user_cosine(self, data_set, userId):
-        return {} # dictionary of weights mapped to users. e.g. {"0331949b45":1.0, "1030c5a8a9":2.5}
-   
+        dfcos = data_set.copy() # make a copy
+        similarity = {}
+        for user in dfcos.columns[1:] :
+            if (user != userId) :
+                df_subset = dfcos[[userId, user]][dfcos[userId].notnull() & dfcos[user].notnull()]
+                dist = cosine(df_subset[userId], df_subset[user])
+                similarity[user] = 1-dist
+        return similarity
+    
     def train_user_pearson(self, data_set, userId):
-        return {} # dictionary of weights mapped to users. e.g. {"0331949b45":1.0, "1030c5a8a9":2.5}
+        user = userId
+        df = data_set
+        similarities = {}
+        drop_columns = ['movieId', user]
+        other_users = df.drop(drop_columns, axis =1)
+        for users in other_users:
+            df_subset = df[[user, users]][df[user].notnull() & df[users].notnull()]
+            similarities[users] = pearsonr(df_subset[user],df_subset[users])[0]
+        return similarities # dictionary of weights mapped to users. e.g. {"0331949b45":1.0, "1030c5a8a9":2.5}
 
     def train_user(self, data_set, distance_function, userId):
         if distance_function == 'euclidean':
@@ -64,13 +93,67 @@ class Recommender(object):
             return None
 
     def get_user_existing_ratings(self, data_set, userId):
-        return [] # list of tuples with movieId and rating. e.g. [(32, 4.0), (50, 4.0)]
+        dfrating = data_set.copy()
+        rating = []
 
+        for user in dfrating.columns[1:]:
+            if (userId == user) :
+                rating = dfrating[['movieId', user]][dfrating[user].notnull()].values
+                rating = [tuple(row) for row in rating]
+                break
+        return rating # list of tuples with movieId and rating. e.g. [(32, 4.0), (50, 4.0)]
+    
     def predict_user_existing_ratings_top_k(self, data_set, sim_weights, userId, k):
-        return [] # list of tuples with movieId and rating. e.g. [(32, 4.0), (50, 4.0)]
+        pred = data_set.copy()
+        top_k_sim = dict(sorted(sim_weights.items(), key=lambda x: x[1], reverse=True)[:k])
+        pRating = []
+
+        for i, row in pred.iterrows():
+            if not np.isnan(row[userId]):  
+                prediction = 0
+                totalweight = 0
+                for user in pred.columns[1:]:
+                    if user != userId and not np.isnan(row[user]):  
+                        if user in top_k_sim:  
+                            prediction += top_k_sim[user] * row[user]
+                            totalweight += top_k_sim[user]
+
+                if totalweight != 0:
+                    prediction /= totalweight
+                else:
+                    prediction = 0 
+
+                pRating.append((row['movieId'], prediction))
+        
+        return pRating
     
     def evaluate(self, existing_ratings, predicted_ratings):
-        return {'rmse':0, 'ratio':0} # dictionary with an rmse value and a ratio. e.g. {'rmse':1.2, 'ratio':0.5}
+        eval = {}
+        squ_errors = 0
+        common_movies = 0
+        ratio = 0
+
+        for i, existRate in enumerate(existing_ratings) :
+            for j, predict in enumerate(predicted_ratings):
+                if (existRate[0] == predict[0]) and (existRate[1]) and (predict[1]):
+                    squ_errors += ((existRate[1] - predict[1]) ** 2)
+                    common_movies += 1
+                    break  
+
+        if (common_movies != 0) :
+            squ_errors /= common_movies
+
+        squ_errors = math.sqrt(squ_errors)
+        eval['rmse'] = squ_errors
+        baseline = [i for i in existing_ratings if i[1] != None]
+        rate = len(baseline)
+        
+        if (rate > 0) :
+            ratio = common_movies / rate
+
+        eval['ratio'] = ratio
+
+        return eval
     
     def single_calculation(self, distance_function, userId, k_values):
         user_existing_ratings = self.get_user_existing_ratings(self.test_set, userId)
