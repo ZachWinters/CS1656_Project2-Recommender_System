@@ -1,11 +1,11 @@
 # Movie Recommender System
-**Technologies: **Python, Pandas, NumPy, SciPy
+**Technologies:** Python, Pandas, NumPy, SciPy
 (Euclidean/Manhattan/Cosine/Pearson metrics
 
 ## Project Overview
 Implements a user-based collaborative filtering recommender system with four-different similarity metrics to predict movie ratings. The system analyzed user behavior patterns to generate personalized recommendations. Furthermore, evalutates prediction accuracy using RMSE and coverage metrics
 
-##Key Features
+## Key Features
 * **Multiple Similarity Metrics**: Implements four distinct algorithms to calculate user similarity:
   - Euclidean Distance
   - Manhattan Distance
@@ -16,7 +16,7 @@ Implements a user-based collaborative filtering recommender system with four-dif
   * Root Mean Square Error (RMSE)
   * Coverage Ratio (percentage of predictable ratings)
   
-##Core Components
+## Core Components
 1. **Data Processing**:
   * Handles CSV input files containing user-movie ratings
   * Uses Pandas DataFrames for efficient data manipulation
